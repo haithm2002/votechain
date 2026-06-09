@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VoteChain — Decentralized Voting</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+    :root {
+      --bg:        #0a0e1a;
+      --surface:   #111827;
+      --border:    #1e2d45;
+      --accent:    #3b82f6;
+      --accent2:   #06b6d4;
+      --success:   #10b981;
+      --danger:    #ef4444;
+      --warning:   #f59e0b;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --mono:      'Space Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      font-size: 15px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .logo span { color: var(--accent); }
+
+    #connectBtn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #connectBtn:hover { background: #2563eb; }
+
+    .wallet-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .wallet-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── LAYOUT ── */
+    main {
+      max-width: 1000px;
+      margin: 40px auto;
+      padding: 0 24px;
+      display: grid;
+      gap: 24px;
+    }
+
+    /* ── ELECTION STATUS BANNER ── */
+    #statusBanner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px 28px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 20px;
+    }
+
+    .stat-block { display: flex; flex-direction: column; gap: 4px; }
+
+    .stat-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .stat-value {
+      font-size: 1.3rem;
+      font-weight: 600;
+      font-family: var(--mono);
+      color: var(--text);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      width: fit-content;
+    }
+
+    .badge-open   { background: rgba(16,185,129,0.15); color: var(--success); }
+    .badge-closed { background: rgba(239,68,68,0.15);  color: var(--danger);  }
+
+    /* ── CARDS GRID ── */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+    }
+
+    .card-title {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title::before {
+      content: '';
+      display: block;
+      width: 3px;
+      height: 14px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* ── FORM ELEMENTS ── */
+    .field { margin-bottom: 14px; }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus { border-color: var(--accent); }
+    input::placeholder { color: var(--muted); }
+
+    .btn {
+      width: 100%;
+      padding: 11px;
+      border: none;
+      border-radius: 8px;
+      font-family: var(--sans);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      margin-top: 4px;
+    }
+
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary  { background: var(--accent);  color: #fff; }
+    .btn-success  { background: var(--success); color: #fff; }
+    .btn-danger   { background: var(--danger);  color: #fff; }
+    .btn-cyan     { background: var(--accent2); color: #000; }
+    .btn-outline  {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-row { display: flex; gap: 10px; }
+    .btn-row .btn { flex: 1; }
+
+    /* ── RESULTS TABLE ── */
+    #resultsSection { grid-column: 1 / -1; }
+
+    .results-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .candidate-row {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .candidate-bar {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      background: rgba(59,130,246,0.08);
+      border-left: 3px solid var(--accent);
+      transition: width 0.6s ease;
+      pointer-events: none;
+    }
+
+    .candidate-id {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      min-width: 24px;
+      z-index: 1;
+    }
+
+    .candidate-info { flex: 1; z-index: 1; }
+
+    .candidate-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .candidate-party {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .candidate-votes {
+      font-family: var(--mono);
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--accent);
+      z-index: 1;
+    }
+
+    .vote-btn-small {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      z-index: 1;
+      transition: background 0.2s;
+    }
+    .vote-btn-small:hover { background: #2563eb; }
+    .vote-btn-small:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 20px;
+      font-size: 0.88rem;
+      max-width: 320px;
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { border-left: 4px solid var(--success); }
+    #toast.error   { border-left: 4px solid var(--danger); }
+    #toast.info    { border-left: 4px solid var(--accent); }
+
+    /* ── NOT CONNECTED STATE ── */
+    #notConnected {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+
+    #notConnected h2 {
+      font-family: var(--mono);
+      font-size: 1.1rem;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+
+    /* ── SECTION DIVIDER ── */
+    .section-full { grid-column: 1 / -1; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 4px 0;
+    }
+
+    /* ── ADMIN TAG ── */
+    .admin-tag {
+      font-size: 0.7rem;
+      background: rgba(245,158,11,0.15);
+      color: var(--warning);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+
+    /* ── TX HASH ── */
+    .tx-link {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--accent2);
+      text-decoration: none;
+      display: block;
+      margin-top: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tx-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">Vote<span>Chain</span></div>
+  <div id="walletArea">
+    <button id="connectBtn" onclick="connectWallet()">Connect MetaMask</button>
+  </div>
+</header>
+
+<!-- ── TOAST ── -->
+<div id="toast"></div>
+
+<!-- ── MAIN ── -->
+<main id="appContent">
+  <div id="notConnected">
+    <h2>Connect your wallet to continue</h2>
+    <p>Click "Connect MetaMask" in the top right to get started.</p>
+  </div>
+</main>
+
+<script>
+// ────────────────────────────────────────────
+//  CONFIG — PASTE YOUR VALUES HERE
+// ────────────────────────────────────────────
+const CONTRACT_ADDRESS = "0xc1C78F9540047F44AD405A9fD985f586d9a70443";
+
+const ABI = [
+  "function addCandidate(string calldata _name, string calldata _party) external",
+  "function whitelistVoter(address _voter) external",
+  "function openElection() external",
+  "function closeElection() external",
+  "function castVote(uint256 _candidateId) external",
+  "function getCandidateCount() external view returns (uint256)",
+  "function getCandidate(uint256 _id) external view returns (uint256, string, string, uint256)",
+  "function getElectionStatus() external view returns (string, bool, uint256, uint256)",
+  "function owner() external view returns (address)",
+  "function hasVoted(address) external view returns (bool)",
+  "function isWhitelisted(address) external view returns (bool)"
+];
+
+// ────────────────────────────────────────────
+//  STATE
+// ────────────────────────────────────────────
+let provider, signer, contract;
+let userAddress = null;
+let isOwner = false;
+
+// ────────────────────────────────────────────
+//  CONNECT WALLET
+// ────────────────────────────────────────────
+async function connectWallet() {
+  if (!window.ethereum) {
+    showToast("MetaMask not found. Please install it.", "error");
+    return;
+  }
+
+  try {
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+
+    const network = await provider.getNetwork();
+    if (network.chainId !== 11155111) {
+      showToast("Please switch MetaMask to Sepolia Testnet", "error");
+      return;
+    }
+
+    signer      = provider.getSigner();
+    userAddress = await signer.getAddress();
+    contract    = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+    const ownerAddr = await contract.owner();
+    isOwner = ownerAddr.toLowerCase() === userAddress.toLowerCase();
+
+    // Update header
+    document.getElementById("walletArea").innerHTML = `
+      <div class="wallet-info">
+        <div class="wallet-dot"></div>
+        <span>${userAddress.slice(0,6)}...${userAddress.slice(-4)}</span>
+        ${isOwner ? '<span class="admin-tag">ADMIN</span>' : ''}
+      </div>`;
+
+    buildUI();
+    loadStatus();
+    loadCandidates();
+
+  } catch (e) {
+    showToast("Connection failed: " + e.message, "error");
+  }
+}
+
+// ────────────────────────────────────────────
+//  BUILD UI
+// ────────────────────────────────────────────
+function buildUI() {
+  document.getElementById("appContent").innerHTML = `
+
+    <!-- STATUS BANNER -->
+    <div id="statusBanner" class="section-full">
+      <div class="stat-block">
+        <div class="stat-label">Election</div>
+        <div class="stat-value" id="electionName">—</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Status</div>
+        <div id="electionStatus">—</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Total Votes</div>
+        <div class="stat-value" id="totalVotes">—</div>
+      </div>
+      <div class="stat-block">
+        <div class="stat-label">Candidates</div>
+        <div class="stat-value" id="candidateCount">—</div>
+      </div>
+    </div>
+
+    <!-- LIVE RESULTS -->
+    <div class="card section-full" id="resultsSection">
+      <div class="card-title">Live Results</div>
+      <div class="results-grid" id="resultsGrid">
+        <div style="color:var(--muted);font-size:0.85rem;">Loading candidates...</div>
+      </div>
+    </div>
+
+    ${isOwner ? `
+    <!-- ADMIN PANEL -->
+    <div class="card">
+      <div class="card-title">Add Candidate</div>
+      <div class="field">
+        <label>Full Name</label>
+        <input id="cName" placeholder="e.g. Ahmad Rizal" />
+      </div>
+      <div class="field">
+        <label>Party / Group</label>
+        <input id="cParty" placeholder="e.g. Student Unity Party" />
+      </div>
+      <button class="btn btn-primary" onclick="addCandidate()">Add Candidate</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Manage Election</div>
+      <div class="field">
+        <label>Whitelist a Voter Address</label>
+        <input id="voterAddr" placeholder="0x..." />
+      </div>
+      <button class="btn btn-cyan" onclick="whitelistVoter()" style="margin-bottom:12px">Whitelist Voter</button>
+      <hr class="divider" style="margin:14px 0">
+      <div class="btn-row">
+        <button class="btn btn-success" onclick="openElection()">Open Election</button>
+        <button class="btn btn-danger"  onclick="closeElection()">Close Election</button>
+      </div>
+    </div>
+    ` : `
+    <!-- VOTER PANEL -->
+    <div class="card section-full">
+      <div class="card-title">Your Voting Status</div>
+      <div id="voterStatus" style="color:var(--muted);font-size:0.88rem;">Checking...</div>
+    </div>
+    `}
+  `;
+
+  if (!isOwner) checkVoterStatus();
+}
+
+// ────────────────────────────────────────────
+//  LOAD STATUS
+// ────────────────────────────────────────────
+async function loadStatus() {
+  try {
+    const [name, open, total, count] = await contract.getElectionStatus();
+    document.getElementById("electionName").textContent  = name;
+    document.getElementById("totalVotes").textContent    = total.toString();
+    document.getElementById("candidateCount").textContent = count.toString();
+    document.getElementById("electionStatus").innerHTML  = open
+      ? '<span class="badge badge-open">● Open</span>'
+      : '<span class="badge badge-closed">● Closed</span>';
+  } catch(e) { console.error(e); }
+}
+
+// ────────────────────────────────────────────
+//  LOAD CANDIDATES
+// ────────────────────────────────────────────
+async function loadCandidates() {
+  try {
+    const count = await contract.getCandidateCount();
+    const n = count.toNumber();
+    const grid = document.getElementById("resultsGrid");
+
+    if (n === 0) {
+      grid.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;">No candidates yet.</div>';
+      return;
+    }
+
+    const [, open] = await contract.getElectionStatus();
+    let totalVotes = 0;
+    const rows = [];
+
+    for (let i = 0; i < n; i++) {
+      const [id, name, party, votes] = await contract.getCandidate(i);
+      totalVotes += votes.toNumber();
+      rows.push({ id: id.toNumber(), name, party, votes: votes.toNumber() });
+    }
+
+    grid.innerHTML = rows.map(r => {
+      const pct = totalVotes > 0 ? Math.round((r.votes / totalVotes) * 100) : 0;
+      return `
+        <div class="candidate-row">
+          <div class="candidate-bar" style="width:${pct}%"></div>
+          <div class="candidate-id">#${r.id}</div>
+          <div class="candidate-info">
+            <div class="candidate-name">${r.name}</div>
+            <div class="candidate-party">${r.party}</div>
+          </div>
+          <div class="candidate-votes">${r.votes} vote${r.votes !== 1 ? 's' : ''} <span style="color:var(--muted);font-size:0.75rem">(${pct}%)</span></div>
+          ${open && !isOwner ? `<button class="vote-btn-small" onclick="castVote(${r.id})">Vote</button>` : ''}
+        </div>`;
+    }).join('');
+
+  } catch(e) { console.error(e); }
+}
+
+// ────────────────────────────────────────────
+//  CHECK VOTER STATUS
+// ────────────────────────────────────────────
+async function checkVoterStatus() {
+  try {
+    const whitelisted = await contract.isWhitelisted(userAddress);
+    const voted       = await contract.hasVoted(userAddress);
+    const el          = document.getElementById("voterStatus");
+    if (!el) return;
+
+    if (voted) {
+      el.innerHTML = '<span style="color:var(--success)">✓ You have already voted. Thank you!</span>';
+    } else if (whitelisted) {
+      el.innerHTML = '<span style="color:var(--accent)">✓ You are whitelisted. Click a Vote button above to cast your vote.</span>';
+    } else {
+      el.innerHTML = '<span style="color:var(--warning)">⚠ Your address is not whitelisted. Contact the admin to be added.</span>';
+    }
+  } catch(e) {}
+}
+
+// ────────────────────────────────────────────
+//  ADMIN FUNCTIONS
+// ────────────────────────────────────────────
+async function addCandidate() {
+  const name  = document.getElementById("cName").value.trim();
+  const party = document.getElementById("cParty").value.trim();
+  if (!name || !party) { showToast("Fill in both fields", "error"); return; }
+
+  try {
+    showToast("Confirm in MetaMask...", "info");
+    const tx = await contract.addCandidate(name, party);
+    showToast("Adding candidate... please wait", "info");
+    await tx.wait();
+    showToast(`${name} added successfully!`, "success");
+    document.getElementById("cName").value  = "";
+    document.getElementById("cParty").value = "";
+    loadStatus();
+    loadCandidates();
+  } catch(e) {
+    showToast(parseError(e), "error");
+  }
+}
+
+async function whitelistVoter() {
+  const addr = document.getElementById("voterAddr").value.trim();
+  if (!ethers.utils.isAddress(addr)) { showToast("Invalid Ethereum address", "error"); return; }
+
+  try {
+    showToast("Confirm in MetaMask...", "info");
+    const tx = await contract.whitelistVoter(addr);
+    await tx.wait();
+    showToast("Voter whitelisted!", "success");
+    document.getElementById("voterAddr").value = "";
+  } catch(e) {
+    showToast(parseError(e), "error");
+  }
+}
+
+async function openElection() {
+  try {
+    showToast("Confirm in MetaMask...", "info");
+    const tx = await contract.openElection();
+    await tx.wait();
+    showToast("Election is now OPEN!", "success");
+    loadStatus(); loadCandidates();
+  } catch(e) { showToast(parseError(e), "error"); }
+}
+
+async function closeElection() {
+  try {
+    showToast("Confirm in MetaMask...", "info");
+    const tx = await contract.closeElection();
+    await tx.wait();
+    showToast("Election closed.", "success");
+    loadStatus(); loadCandidates();
+  } catch(e) { showToast(parseError(e), "error"); }
+}
+
+// ────────────────────────────────────────────
+//  VOTER FUNCTION
+// ────────────────────────────────────────────
+async function castVote(candidateId) {
+  try {
+    showToast("Confirm in MetaMask...", "info");
+    const tx = await contract.castVote(candidateId);
+    showToast("Vote being recorded...", "info");
+    await tx.wait();
+    showToast("Vote cast successfully! 🎉", "success");
+    loadStatus(); loadCandidates(); checkVoterStatus();
+  } catch(e) { showToast(parseError(e), "error"); }
+}
+
+// ────────────────────────────────────────────
+//  HELPERS
+// ────────────────────────────────────────────
+function showToast(msg, type = "info") {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className   = `show ${type}`;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = ""; }, 4000);
+}
+
+function parseError(e) {
+  if (e?.reason) return e.reason;
+  if (e?.data?.message) return e.data.message;
+  if (e?.message?.includes("revert")) {
+    const m = e.message.match(/reverted with reason string '(.+)'/);
+    return m ? m[1] : "Transaction reverted";
+  }
+  return "Transaction failed";
+}
+</script>
+</body>
+</html>
